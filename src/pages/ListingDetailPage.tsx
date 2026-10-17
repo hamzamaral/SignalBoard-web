@@ -25,37 +25,69 @@ export function ListingDetailPage() {
 
   if (isLoading || !data) return <p className="text-slate-500">Yükleniyor…</p>;
 
+  const thin =
+    !data.applyStartAt &&
+    !data.applyEndAt &&
+    !data.examAt &&
+    !(data.positions?.length) &&
+    !(data.requiredDocuments?.length);
+
+  const backTo = data.kind === 'PRIVATE' ? '/private' : '/listings';
+
   return (
     <div className="space-y-6">
-      <Link to="/listings" className="text-sm text-accent">
-        ← Kamu ilanları
+      <Link to={backTo} className="text-sm text-accent">
+        ← {data.kind === 'PRIVATE' ? 'Özel ilanlar' : 'Kamu ilanları'}
       </Link>
       <div>
         <h1 className="font-display text-3xl font-bold">{data.title}</h1>
         <p className="text-slate-600">
-          {data.institution?.name ?? 'Kurum'} · {data.city ?? '—'} · {data.source}
+          {data.institution?.name ?? 'Kurum'} · {data.city ?? 'Şehir yok'} ·{' '}
+          {sourceLabel(data.source)}
         </p>
       </div>
+
+      {thin && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-950">
+          <p className="font-medium">Bu kayıt özet scrape</p>
+          <p className="mt-1 text-amber-900/80">
+            Başvuru / sınav tarihleri henüz yok. Tam detay için Admin → “İlan yapıştır → ayrıştır”
+            ile resmi ilan metnini kaydedin.
+          </p>
+          <Link to="/admin" className="mt-2 inline-block text-accent underline">
+            Admin’e git
+          </Link>
+        </div>
+      )}
 
       <div className="grid gap-3 rounded-xl border bg-white/80 p-4 text-sm sm:grid-cols-2">
         <p>
           <span className="text-slate-500">Başvuru:</span>{' '}
-          {fmt(data.applyStartAt)} – {fmt(data.applyEndAt)}
+          {hasDate(data.applyStartAt, data.applyEndAt)
+            ? `${fmt(data.applyStartAt)} – ${fmt(data.applyEndAt)}`
+            : 'Henüz yok (özet kayıt)'}
         </p>
         <p>
-          <span className="text-slate-500">Sınav:</span> {fmt(data.examAt)}
+          <span className="text-slate-500">Sınav:</span>{' '}
+          {data.examAt ? fmt(data.examAt) : 'Henüz yok'}
         </p>
         <p>
-          <span className="text-slate-500">Sonuç ilanı:</span> {fmt(data.resultAnnounceAt)}
+          <span className="text-slate-500">Sonuç ilanı:</span>{' '}
+          {data.resultAnnounceAt ? fmt(data.resultAnnounceAt) : 'Henüz yok'}
         </p>
         <p>
           <span className="text-slate-500">Yöntem:</span>{' '}
-          {(data.applicationMethods ?? []).join(', ') || '—'}
+          {(data.applicationMethods ?? []).join(', ') || 'Henüz yok'}
         </p>
         {data.url && (
           <p className="sm:col-span-2">
-            <a href={data.url} target="_blank" rel="noreferrer" className="text-accent">
-              Kaynak linki
+            <a
+              href={data.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex rounded-md bg-accent px-3 py-2 text-sm text-white"
+            >
+              Kaynak sayfasını aç
             </a>
           </p>
         )}
@@ -132,10 +164,10 @@ export function ListingDetailPage() {
 
       <button
         type="button"
-        className="rounded-lg border px-4 py-2 text-sm"
+        className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white"
         onClick={() => track.mutate(undefined)}
       >
-        İlanı (genel) başvurularıma ekle
+        Başvurularıma ekle
       </button>
     </div>
   );
@@ -144,4 +176,19 @@ export function ListingDetailPage() {
 function fmt(v?: string | null) {
   if (!v) return '—';
   return new Date(v).toLocaleDateString('tr-TR');
+}
+
+function hasDate(a?: string | null, b?: string | null) {
+  return Boolean(a || b);
+}
+
+function sourceLabel(source: string) {
+  const map: Record<string, string> = {
+    KAMUILAN: 'Kamu İlan (SBB)',
+    ILAN_GOV: 'ilan.gov.tr',
+    YEREL_YONETIMLER: 'Yerel Yönetimler',
+    MANUAL: 'Manuel / yapıştırma',
+    PRIVATE: 'Özel',
+  };
+  return map[source] ?? source;
 }

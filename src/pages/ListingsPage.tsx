@@ -15,7 +15,7 @@ export function ListingsPage({ kind = 'PUBLIC' }: { kind?: 'PUBLIC' | 'PRIVATE' 
   const track = useMutation({
     mutationFn: (listingId: string) => api.post('/pipeline', { listingId, status: 'REVIEW' }),
     onSuccess: () => {
-      toast.success('Pipeline’a eklendi (hatırlatıcılar oluşturuldu)');
+      toast.success('Başvurularıma eklendi');
       void qc.invalidateQueries({ queryKey: ['pipeline'] });
       void qc.invalidateQueries({ queryKey: ['reminders'] });
     },
@@ -96,6 +96,27 @@ export function ListingsPage({ kind = 'PUBLIC' }: { kind?: 'PUBLIC' | 'PRIVATE' 
             </div>
           </article>
         ))}
+        {!isLoading && !(data?.items?.length) && (
+          <p className="rounded-xl border bg-white/80 p-6 text-sm text-slate-500">
+            Henüz ilan yok.{' '}
+            {kind === 'PUBLIC' ? (
+              <>
+                Admin’den kaynak tara veya{' '}
+                <Link to="/admin" className="text-accent">
+                  ilan metni yapıştır
+                </Link>
+                .
+              </>
+            ) : (
+              <>
+                <Link to="/admin" className="text-accent">
+                  Admin → Özel
+                </Link>{' '}
+                ile metin yapıştırarak ekleyebilirsin.
+              </>
+            )}
+          </p>
+        )}
       </div>
     </div>
   );

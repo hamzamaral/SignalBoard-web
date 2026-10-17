@@ -32,7 +32,7 @@ export function AppLayout() {
               Profil
             </NavLink>
             <NavLink to="/reminders" className={linkClass}>
-              Hatırlatıcı
+              Takvim
             </NavLink>
             {hasRole('ADMIN') && (
               <NavLink to="/admin" className={linkClass}>

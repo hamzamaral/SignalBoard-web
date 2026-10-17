@@ -3,19 +3,13 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api, getErrorMessage } from '@/lib/api';
+import {
+  PIPELINE_STATUSES,
+  TIMELINE_STEPS,
+  statusLabel,
+  type PipelineStatusCode,
+} from '@/lib/status-labels';
 import type { PipelineRow } from '@/types/api';
-
-const STATUSES = [
-  'NEW',
-  'REVIEW',
-  'TO_APPLY',
-  'APPLIED',
-  'WAITING_RESULT',
-  'CLOSED',
-  'CANNOT_APPLY',
-] as const;
-
-const TIMELINE = ['REVIEW', 'TO_APPLY', 'APPLIED', 'WAITING_RESULT', 'CLOSED'] as const;
 
 export function PipelinePage() {
   const qc = useQueryClient();
@@ -68,9 +62,9 @@ export function PipelinePage() {
           onChange={(e) => setStatusFilter(e.target.value)}
         >
           <option value="">Tüm durumlar</option>
-          {STATUSES.map((s) => (
+          {PIPELINE_STATUSES.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {statusLabel(s)}
             </option>
           ))}
         </select>
@@ -108,9 +102,11 @@ export function PipelinePage() {
                     : ''}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-1">
-                  {TIMELINE.map((step) => {
-                    const idx = TIMELINE.indexOf(step);
-                    const cur = TIMELINE.indexOf(row.status as (typeof TIMELINE)[number]);
+                  {TIMELINE_STEPS.map((step) => {
+                    const idx = TIMELINE_STEPS.indexOf(step);
+                    const cur = TIMELINE_STEPS.indexOf(
+                      row.status as (typeof TIMELINE_STEPS)[number],
+                    );
                     const active = cur >= 0 && idx <= cur;
                     return (
                       <span
@@ -119,7 +115,7 @@ export function PipelinePage() {
                           active ? 'bg-accent text-white' : 'bg-slate-100 text-slate-500'
                         }`}
                       >
-                        {step}
+                        {statusLabel(step)}
                       </span>
                     );
                   })}
@@ -136,9 +132,9 @@ export function PipelinePage() {
                 value={row.status}
                 onChange={(e) => update.mutate({ id: row.id, status: e.target.value })}
               >
-                {STATUSES.map((s) => (
+                {PIPELINE_STATUSES.map((s) => (
                   <option key={s} value={s}>
-                    {s}
+                    {statusLabel(s as PipelineStatusCode)}
                   </option>
                 ))}
               </select>
@@ -146,7 +142,12 @@ export function PipelinePage() {
           </article>
         ))}
         {!filtered.length && (
-          <p className="text-sm text-slate-500">Henüz başvuru/takip kaydı yok.</p>
+          <p className="text-sm text-slate-500">
+            Henüz başvuru kaydı yok.{' '}
+            <Link to="/listings" className="text-accent">
+              Kamu ilanlarına git
+            </Link>
+          </p>
         )}
       </div>
     </div>

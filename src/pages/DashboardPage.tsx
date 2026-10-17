@@ -50,7 +50,7 @@ export function DashboardPage() {
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-semibold">Hatırlatıcılar</h2>
             <Link to="/reminders" className="text-sm text-accent">
-              Takvim
+              Takvime git
             </Link>
           </div>
           <ul className="space-y-3">
