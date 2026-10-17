@@ -46,6 +46,15 @@ export function RemindersPage() {
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
+  const remove = useMutation({
+    mutationFn: (id: string) => api.delete(`/reminders/${id}`),
+    onSuccess: () => {
+      toast.success('Hatırlatıcı silindi');
+      void qc.invalidateQueries({ queryKey: ['reminders'] });
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
   async function downloadIcs() {
     const token = tokenStorage.getAccess();
     const res = await fetch('/api/v1/reminders/export.ics', {
@@ -148,14 +157,28 @@ export function RemindersPage() {
             {selectedList.length ? (
               <ul className="space-y-2">
                 {selectedList.map((r) => (
-                  <li key={r.id} className="rounded-lg bg-panel px-3 py-2">
-                    <p className="font-medium">{r.title}</p>
-                    <p className="text-xs text-slate-500">
-                      {new Date(r.remindAt).toLocaleTimeString('tr-TR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </p>
+                  <li
+                    key={r.id}
+                    className="flex items-start justify-between gap-2 rounded-lg bg-panel px-3 py-2"
+                  >
+                    <div>
+                      <p className="font-medium">{r.title}</p>
+                      <p className="text-xs text-slate-500">
+                        {new Date(r.remindAt).toLocaleTimeString('tr-TR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="shrink-0 text-xs text-red-600 underline"
+                      onClick={() => {
+                        if (confirm('Bu hatırlatıcı silinsin mi?')) remove.mutate(r.id);
+                      }}
+                    >
+                      Sil
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -191,9 +214,25 @@ export function RemindersPage() {
 
       <ul className="space-y-2">
         {(data ?? []).map((r) => (
-          <li key={r.id} className="rounded-lg border bg-white/80 px-4 py-3">
-            <p className="font-medium">{r.title}</p>
-            <p className="text-sm text-slate-500">{new Date(r.remindAt).toLocaleString('tr-TR')}</p>
+          <li
+            key={r.id}
+            className="flex items-start justify-between gap-3 rounded-lg border bg-white/80 px-4 py-3"
+          >
+            <div>
+              <p className="font-medium">{r.title}</p>
+              <p className="text-sm text-slate-500">
+                {new Date(r.remindAt).toLocaleString('tr-TR')}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="shrink-0 text-sm text-red-600 underline"
+              onClick={() => {
+                if (confirm(`Silinsin mi?\n${r.title}`)) remove.mutate(r.id);
+              }}
+            >
+              Sil
+            </button>
           </li>
         ))}
         {!data?.length && (

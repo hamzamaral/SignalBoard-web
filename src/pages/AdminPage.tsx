@@ -134,9 +134,20 @@ export function AdminPage() {
     }
   }
 
+  const [mailReport, setMailReport] = useState<{
+    message?: string;
+    processed?: number;
+    pending?: number;
+    ok?: boolean;
+  } | null>(null);
+
   const flush = useMutation({
-    mutationFn: () => api.post('/ingest/flush-mail'),
-    onSuccess: () => toast.success('Bekleyen mailler gönderildi'),
+    mutationFn: async () => (await api.post('/ingest/flush-mail')).data,
+    onSuccess: (data) => {
+      setMailReport(data);
+      if (data?.ok) toast.success(data.message ?? 'Mailler gönderildi');
+      else toast.message(data?.message ?? 'Kuyruk boş veya SMTP yok');
+    },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
@@ -283,11 +294,21 @@ export function AdminPage() {
           ))}
           <SourceRow
             title="Bekleyen mailleri gönder"
-            hint="SMTP kuyruğu."
+            hint="SMTP kuyruğu — ayar yoksa mail gitmez."
             busy={flush.isPending}
             onClick={() => flush.mutate()}
           />
         </div>
+        {mailReport && (
+          <p
+            className={`mt-3 border p-2 text-sm ${
+              mailReport.ok ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'
+            }`}
+          >
+            {mailReport.message}
+            {typeof mailReport.pending === 'number' ? ` (bekleyen: ${mailReport.pending})` : ''}
+          </p>
+        )}
       </section>
 
       <section className="border border-slate-200 bg-white">
