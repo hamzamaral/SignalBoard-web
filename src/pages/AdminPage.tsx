@@ -171,7 +171,7 @@ export function AdminPage() {
         <h1 className="font-display text-2xl font-bold tracking-tight">Admin</h1>
         <p className="text-sm text-slate-600">
           Yapıştır · kaynak tara · SMTP/LLM · SMTP:{' '}
-          {settings.data?.smtpConfigured ? 'hazır' : 'yok'} · LLM:{' '}
+          {settings.data?.smtpConfigured ? 'hazır' : 'ayarlanmadı'} · LLM:{' '}
           {settings.data?.llm?.provider ?? '—'}
         </p>
       </div>
@@ -310,7 +310,7 @@ export function AdminPage() {
           ))}
           <SourceRow
             title="Bekleyen mailleri gönder"
-            hint="SMTP kuyruğu — ayar yoksa mail gitmez."
+            hint="SMTP kuyruğu — önce SMTP ayarlarını kaydedin."
             busy={flush.isPending}
             onClick={() => flush.mutate()}
           />

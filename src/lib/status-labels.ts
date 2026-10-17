@@ -6,6 +6,7 @@ export const PIPELINE_STATUSES = [
   'WAITING_RESULT',
   'CLOSED',
   'CANNOT_APPLY',
+  'CANCELLED',
 ] as const;
 
 export type PipelineStatusCode = (typeof PIPELINE_STATUSES)[number];
@@ -18,8 +19,10 @@ export const STATUS_LABELS: Record<PipelineStatusCode, string> = {
   WAITING_RESULT: 'Sonuç bekleniyor',
   CLOSED: 'Kapandı',
   CANNOT_APPLY: 'Başvurulamaz',
+  CANCELLED: 'İptal edildi',
 };
 
+/** Ana akış (iptal / başvurulamaz timeline dışında) */
 export const TIMELINE_STEPS = [
   'REVIEW',
   'TO_APPLY',

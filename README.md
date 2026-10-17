@@ -1,43 +1,59 @@
 # SignalBoard Web
 
-React UI for [SignalBoard-api](https://github.com/hamzamaral/SignalBoard-api) — listing aggregator, applications pipeline, profile matching, calendar reminders, admin tools.
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
+![Tailwind](https://img.shields.io/badge/Tailwind-3-06B6D4?logo=tailwindcss&logoColor=white)
 
-## Screenshots / flow
+**SignalBoard**, kamu ve özel ilanları tek panelde toplayan, profil skoru ve son tarih takibi sunan bir showcase uygulamasıdır.
+Bu repo arayüzdür; API ayrı tutulur.
 
-```
-Login → Özet (öneriler + yaklaşan hatırlatıcılar)
-      → Kamu / Özel (ilan listesi)
-      → İlan detayı (tarihler, kadro tablosu; özet scrape’de uyarı)
-      → Başvurularım (İnceleme → Başvurulacak → Başvuruldu → …)
-      → Takvim (ay görünümü + .ics)
-      → Profil (KPSS / yetkinlik)
-      → Admin (yapıştır kamu|özel, SMTP, LLM, kaynak tarama)
-```
+| Repo | İçerik |
+| ---- | ------ |
+| **SignalBoard-web** (bu repo) | React SPA |
+| [SignalBoard-api](https://github.com/hamzamaral/SignalBoard-api) | NestJS API, Prisma, PostgreSQL |
 
-### Admin notları
+![Özet](docs/screenshots/dashboard.png)
 
-| Bölüm | Ne işe yarar |
-|-------|----------------|
-| İlan yapıştır | Kamu **veya** özel tam metin → ayrıştır / kaydet |
-| SMTP | Uygun ilan e-postası (key GitHub’da yok) |
-| LLM | Ollama varsayılan; Gemini/Groq isteğe bağlı |
-| Kaynaklardan topla | ilan.gov / Kamu İlan / Yerel Yönetimler (özet; detay için paste) |
+## Ekranlar
 
-### Başvuru durumları (UI)
+| | |
+| --- | --- |
+| ![Giriş](docs/screenshots/login.png) | ![Özet](docs/screenshots/dashboard.png) |
+| **Giriş:** demo hesap, JWT oturum | **Özet:** profil skorlu öneriler ve yaklaşan hatırlatıcılar |
+| ![Kamu](docs/screenshots/listings-public.png) | ![Özel](docs/screenshots/listings-private.png) |
+| **Kamu:** arama, filtre, Excel, takip durumu | **Özel:** aynı liste akışı, `kind=PRIVATE` |
+| ![İlan detayı](docs/screenshots/listing-detail.png) | ![Başvurularım](docs/screenshots/pipeline.png) |
+| **İlan detayı:** tarihler, kadrolar, not, AI zenginleştirme | **Başvurularım:** durum timeline, iptal / başvurulamaz, Excel |
+| ![Takvim](docs/screenshots/calendar.png) | ![Admin](docs/screenshots/admin.png) |
+| **Takvim:** ay görünümü, hatırlatıcı, `.ics` dışa aktarma | **Admin:** yapıştır, kaynak tara, SMTP / LLM |
 
-Yeni · İnceleme · Başvurulacak · Başvuruldu · Sonuç bekleniyor · Kapandı · Başvurulamaz
+## Özellikler
+
+- **Özet:** profile göre skorlanan açık ilanlar (en fazla 12), yaklaşan hatırlatıcılar
+- **Kamu / Özel listeler:** arama (Türkçe katlama), kaynak / tarih filtreleri, Excel indirme
+- **İlan detayı:** başvuru pencereleri, kadro tablosu, notlar, isteğe bağlı LLM zenginleştirme
+- **Başvurularım:** Yeni → İnceleme → Başvurulacak → Başvuruldu → Sonuç bekleniyor → Kapandı; ayrıca **Başvurulamaz** ve **İptal edildi**
+- **Takvim:** ay görünümü + ICS
+- **Profil:** KPSS / öğrenim / şehir tercihleri (öneri skoruna yansır)
+- **Admin:** kamu veya özel metin yapıştır → ayrıştır / kaydet; kaynak özet tarama; SMTP ve LLM ayarları
 
 ## Stack
 
-React 18 · Vite · TypeScript · TanStack Query · React Router 6 · Tailwind · Axios (refresh queue)
+React 18 · Vite · TypeScript · TanStack Query · React Router 6 · Tailwind · Axios (refresh kuyruğu) · Sonner
 
-## Quick start
+## Hızlı başlangıç
 
 ```bash
 npm install
 npm run dev
 ```
 
-http://localhost:5173 (proxies `/api` → `http://localhost:3000`)
+http://localhost:5173 — `/api` → `http://localhost:3000` proxy
 
-Requires API running. Demo: `admin@signalboard.local` / `Admin123!`
+API’nin ayakta olması gerekir. Demo: `admin@signalboard.local` / `Admin123!`
+
+## Bağımlı API
+
+Ayarlar ve iş kuralları [SignalBoard-api](https://github.com/hamzamaral/SignalBoard-api) üzerindedir:
+paste-parse, scrape özet, pipeline, hatırlatıcı / ICS, SMTP kuyruğu, LLM.

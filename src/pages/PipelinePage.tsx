@@ -206,23 +206,35 @@ export function PipelinePage() {
                     : '—'}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-1">
-                  {TIMELINE_STEPS.map((step) => {
-                    const idx = TIMELINE_STEPS.indexOf(step);
-                    const cur = TIMELINE_STEPS.indexOf(
-                      row.status as (typeof TIMELINE_STEPS)[number],
-                    );
-                    const active = cur >= 0 && idx <= cur;
-                    return (
-                      <span
-                        key={step}
-                        className={`rounded px-2 py-0.5 text-[10px] ${
-                          active ? 'bg-accent text-white' : 'bg-slate-100 text-slate-500'
-                        }`}
-                      >
-                        {statusLabel(step)}
-                      </span>
-                    );
-                  })}
+                  {row.status === 'CANCELLED' || row.status === 'CANNOT_APPLY' ? (
+                    <span
+                      className={`rounded px-2 py-0.5 text-[10px] font-medium ${
+                        row.status === 'CANCELLED'
+                          ? 'bg-rose-100 text-rose-800'
+                          : 'bg-amber-100 text-amber-900'
+                      }`}
+                    >
+                      {statusLabel(row.status)}
+                    </span>
+                  ) : (
+                    TIMELINE_STEPS.map((step) => {
+                      const idx = TIMELINE_STEPS.indexOf(step);
+                      const cur = TIMELINE_STEPS.indexOf(
+                        row.status as (typeof TIMELINE_STEPS)[number],
+                      );
+                      const active = cur >= 0 && idx <= cur;
+                      return (
+                        <span
+                          key={step}
+                          className={`rounded px-2 py-0.5 text-[10px] ${
+                            active ? 'bg-accent text-white' : 'bg-slate-100 text-slate-500'
+                          }`}
+                        >
+                          {statusLabel(step)}
+                        </span>
+                      );
+                    })
+                  )}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2">
