@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/AuthContext';
@@ -12,11 +13,24 @@ export function ListingsPage({ kind = 'PUBLIC' }: { kind?: 'PUBLIC' | 'PRIVATE' 
   const qc = useQueryClient();
   const { hasRole } = useAuth();
   const isAdmin = hasRole('ADMIN');
+  const [q, setQ] = useState('');
+  const [createdFrom, setCreatedFrom] = useState('');
+  const [createdTo, setCreatedTo] = useState('');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['listings', kind],
+    queryKey: ['listings', kind, q, createdFrom, createdTo],
     queryFn: async () =>
-      (await api.get<{ items: Listing[] }>('/listings', { params: { kind, limit: 200 } })).data,
+      (
+        await api.get<{ items: Listing[] }>('/listings', {
+          params: {
+            kind,
+            limit: 200,
+            q: q.trim() || undefined,
+            createdFrom: createdFrom || undefined,
+            createdTo: createdTo || undefined,
+          },
+        })
+      ).data,
   });
 
   const items = data?.items ?? [];
@@ -79,6 +93,7 @@ export function ListingsPage({ kind = 'PUBLIC' }: { kind?: 'PUBLIC' | 'PRIVATE' 
           Kontrol: row.myTracking?.updatedFlag ? 'Güncellendi' : row.myTracking ? 'Takipte' : '',
           İşlem: row.myTracking ? statusLabel(row.myTracking.status) : '',
           'İlan tarihi': fmtRange(row.applyStartAt, row.applyEndAt),
+          'Eklenme (biz)': row.createdAt ? fmtDate(row.createdAt) : '',
           URL: row.url ?? '',
         })),
         'Kamu',
@@ -130,6 +145,36 @@ export function ListingsPage({ kind = 'PUBLIC' }: { kind?: 'PUBLIC' | 'PRIVATE' 
         </div>
       </div>
 
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="block text-sm">
+          <span className="mb-1 block text-slate-500">Ara</span>
+          <input
+            className="w-56 rounded border px-2 py-1.5 text-sm"
+            placeholder="Başlık / kurum / pozisyon…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block text-slate-500">Eklenme ≥</span>
+          <input
+            type="date"
+            className="rounded border px-2 py-1.5 text-sm"
+            value={createdFrom}
+            onChange={(e) => setCreatedFrom(e.target.value)}
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block text-slate-500">Eklenme ≤</span>
+          <input
+            type="date"
+            className="rounded border px-2 py-1.5 text-sm"
+            value={createdTo}
+            onChange={(e) => setCreatedTo(e.target.value)}
+          />
+        </label>
+      </div>
+
       {isLoading && <p className="text-sm text-slate-500">Yükleniyor…</p>}
 
       {!isLoading && items.length === 0 && (
@@ -159,6 +204,7 @@ export function ListingsPage({ kind = 'PUBLIC' }: { kind?: 'PUBLIC' | 'PRIVATE' 
                 <th className="px-3 py-2 font-semibold">Kontrol</th>
                 <th className="px-3 py-2 font-semibold">İşlem</th>
                 <th className="px-3 py-2 font-semibold">İlan tarihi</th>
+                <th className="px-3 py-2 font-semibold">Eklenme</th>
                 <th className="px-3 py-2 font-semibold">URL</th>
                 <th className="px-3 py-2 font-semibold"> </th>
               </tr>
@@ -204,6 +250,9 @@ export function ListingsPage({ kind = 'PUBLIC' }: { kind?: 'PUBLIC' | 'PRIVATE' 
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-600">
                       {fmtRange(row.applyStartAt, row.applyEndAt)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-600">
+                      {fmtDate(row.createdAt)}
                     </td>
                     <td className="px-3 py-2">
                       {row.url ? (

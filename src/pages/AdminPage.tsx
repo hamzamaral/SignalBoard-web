@@ -8,6 +8,9 @@ type PasteKind = 'PUBLIC' | 'PRIVATE';
 type IngestSourceResult = {
   source: string;
   upserted: number;
+  created?: number;
+  updated?: number;
+  duplicatesSkipped?: number;
   rawCount: number;
   error?: string;
   hint?: string;
@@ -266,7 +269,13 @@ export function AdminPage() {
                 <li key={s.source} className="flex flex-wrap gap-x-3 gap-y-0.5">
                   <span className="font-medium">{labelFor(s.source)}</span>
                   <span>
-                    {s.upserted} kaydedildi / {s.rawCount} ham
+                    {s.created != null || s.updated != null
+                      ? `${s.created ?? 0} yeni · ${s.updated ?? 0} güncellendi`
+                      : `${s.upserted} işlendi`}{' '}
+                    / {s.rawCount} ham
+                    {s.duplicatesSkipped
+                      ? ` · ${s.duplicatesSkipped} tekrar link atlandı`
+                      : ''}
                   </span>
                   {s.error && <span className="text-red-700">Hata: {s.error}</span>}
                   {s.hint && <span className="text-slate-600">{s.hint}</span>}

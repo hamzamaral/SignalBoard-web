@@ -31,6 +31,7 @@ export type ListingPosition = {
 export type MyTracking = {
   id: string;
   status: string;
+  notes?: string | null;
   applyChannel?: string | null;
   mailOk?: boolean;
   formOk?: boolean;
@@ -46,6 +47,10 @@ export type Listing = {
   source: string;
   status: string;
   url?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  rawText?: string | null;
+  description?: string | null;
   applyStartAt?: string | null;
   applyEndAt?: string | null;
   examAt?: string | null;
@@ -83,6 +88,8 @@ export type PipelineRow = {
   applyChannel?: string | null;
   mailOk?: boolean;
   formOk?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
   listing: Listing;
   position?: ListingPosition | null;
 };

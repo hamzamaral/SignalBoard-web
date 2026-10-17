@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api, getErrorMessage } from '@/lib/api';
@@ -7,11 +8,18 @@ import type { Listing } from '@/types/api';
 export function ListingDetailPage() {
   const { id } = useParams();
   const qc = useQueryClient();
+  const [notes, setNotes] = useState('');
+  const [enrichText, setEnrichText] = useState('');
+
   const { data, isLoading } = useQuery({
     queryKey: ['listing', id],
     enabled: Boolean(id),
     queryFn: async () => (await api.get<Listing>(`/listings/${id}`)).data,
   });
+
+  useEffect(() => {
+    setNotes(data?.myTracking?.notes ?? '');
+  }, [data?.myTracking?.notes, data?.id]);
 
   const track = useMutation({
     mutationFn: (positionId?: string) =>
@@ -19,6 +27,36 @@ export function ListingDetailPage() {
     onSuccess: () => {
       toast.success('Başvurularıma eklendi');
       void qc.invalidateQueries({ queryKey: ['pipeline'] });
+      void qc.invalidateQueries({ queryKey: ['listing', id] });
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  const saveNotes = useMutation({
+    mutationFn: async () => {
+      if (data?.myTracking?.id) {
+        return api.patch(`/pipeline/${data.myTracking.id}`, { notes });
+      }
+      return api.post('/pipeline', { listingId: id, status: 'REVIEW', notes });
+    },
+    onSuccess: () => {
+      toast.success('Not kaydedildi');
+      void qc.invalidateQueries({ queryKey: ['listing', id] });
+      void qc.invalidateQueries({ queryKey: ['pipeline'] });
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  const enrich = useMutation({
+    mutationFn: () =>
+      api.post(`/listings/${id}/enrich`, {
+        text: enrichText.trim() || undefined,
+      }),
+    onSuccess: () => {
+      toast.success('AI / kurallar ile alanlar güncellendi');
+      setEnrichText('');
+      void qc.invalidateQueries({ queryKey: ['listing', id] });
+      void qc.invalidateQueries({ queryKey: ['listings'] });
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
@@ -44,6 +82,9 @@ export function ListingDetailPage() {
         <p className="text-slate-600">
           {data.institution?.name ?? 'Kurum'} · {data.city ?? 'Şehir yok'} ·{' '}
           {sourceLabel(data.source)}
+          {data.createdAt
+            ? ` · Eklenme: ${new Date(data.createdAt).toLocaleDateString('tr-TR')}`
+            : ''}
         </p>
       </div>
 
@@ -51,12 +92,8 @@ export function ListingDetailPage() {
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-950">
           <p className="font-medium">Bu kayıt özet scrape</p>
           <p className="mt-1 text-amber-900/80">
-            Başvuru / sınav tarihleri henüz yok. Tam detay için Admin → “İlan yapıştır → ayrıştır”
-            ile resmi ilan metnini kaydedin.
+            Aşağıdaki AI kutusuna ilan metnini yapıştırıp doldurabilirsin.
           </p>
-          <Link to="/admin" className="mt-2 inline-block text-accent underline">
-            Admin’e git
-          </Link>
         </div>
       )}
 
@@ -92,6 +129,47 @@ export function ListingDetailPage() {
           </p>
         )}
       </div>
+
+      <section className="rounded-xl border bg-white/80 p-4">
+        <h2 className="font-semibold">Özel notlarım</h2>
+        <p className="mt-1 text-xs text-slate-500">Sadece senin başvurunda görünür.</p>
+        <textarea
+          className="mt-2 min-h-24 w-full rounded border p-3 text-sm"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Örn. KPSS uygun, belge eksik, mail atıldı…"
+        />
+        <button
+          type="button"
+          className="mt-2 rounded bg-accent px-3 py-1.5 text-sm text-white"
+          onClick={() => saveNotes.mutate()}
+          disabled={saveNotes.isPending}
+        >
+          Notu kaydet
+        </button>
+      </section>
+
+      <section className="rounded-xl border bg-white/80 p-4">
+        <h2 className="font-semibold">AI ile alan doldur</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          İlan metnini yapıştır (veya boş bırakıp mevcut özet metni kullan). Kurallar + LLM tarih /
+          kadro / belge alanlarını doldurur.
+        </p>
+        <textarea
+          className="mt-2 min-h-32 w-full rounded border p-3 text-sm"
+          value={enrichText}
+          onChange={(e) => setEnrichText(e.target.value)}
+          placeholder="Resmi ilan metnini buraya yapıştır…"
+        />
+        <button
+          type="button"
+          className="mt-2 rounded bg-accent px-3 py-1.5 text-sm text-white disabled:opacity-50"
+          onClick={() => enrich.mutate()}
+          disabled={enrich.isPending}
+        >
+          {enrich.isPending ? 'İşleniyor…' : 'AI / kurallar ile doldur'}
+        </button>
+      </section>
 
       {(data.positions?.length ?? 0) > 0 && (
         <section className="rounded-xl border bg-white/80 p-4">
