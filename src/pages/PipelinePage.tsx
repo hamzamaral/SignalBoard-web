@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api, getErrorMessage } from '@/lib/api';
+import { downloadXlsx } from '@/lib/excel';
 import {
   PIPELINE_STATUSES,
   TIMELINE_STEPS,
@@ -85,13 +86,45 @@ export function PipelinePage() {
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
+  function exportExcel() {
+    downloadXlsx(
+      'basvurularim.xlsx',
+      filtered.map((row) => ({
+        İlan: row.listing.title,
+        Kurum: row.listing.institution?.name ?? '',
+        Durum: statusLabel(row.status),
+        Kadro: row.position?.title ?? '',
+        'Başvuru sonu': row.listing.applyEndAt
+          ? new Date(row.listing.applyEndAt).toLocaleDateString('tr-TR')
+          : '',
+        Eklenme: row.createdAt
+          ? new Date(row.createdAt).toLocaleDateString('tr-TR')
+          : '',
+        Not: row.notes ?? '',
+        URL: row.listing.url ?? '',
+      })),
+      'Başvurularım',
+    );
+    toast.success('Excel indirildi');
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight">Başvurularım</h1>
-        <p className="text-sm text-slate-600">
-          Takip, arama, eklenme tarihi · silme · durum
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-bold tracking-tight">Başvurularım</h1>
+          <p className="text-sm text-slate-600">
+            Takip, arama, eklenme tarihi · silme · durum · Excel
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={exportExcel}
+          disabled={!filtered.length}
+          className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-40"
+        >
+          Excel indir
+        </button>
       </div>
 
       <div className="flex flex-wrap items-end gap-3">

@@ -244,7 +244,7 @@ export function ListingsPage({ kind = 'PUBLIC' }: { kind?: 'PUBLIC' | 'PRIVATE' 
                           className="text-xs text-accent underline"
                           onClick={() => track.mutate(row.id)}
                         >
-                          Takip et
+                          Başvurularıma ekle
                         </button>
                       )}
                     </td>
@@ -334,7 +334,7 @@ export function ListingsPage({ kind = 'PUBLIC' }: { kind?: 'PUBLIC' | 'PRIVATE' 
                           className="text-xs text-accent underline"
                           onClick={() => ensureTrack.mutate(row.id)}
                         >
-                          Takibe al
+                          Başvurularıma ekle
                         </button>
                       )}
                     </td>

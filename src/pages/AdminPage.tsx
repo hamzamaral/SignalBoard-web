@@ -254,6 +254,10 @@ export function AdminPage() {
         <p className="mt-1 text-sm text-slate-600">
           Özet çeker. Sonuç aşağıda görünür; 0 ise hata/hint yazılır. Tam metin için yapıştır.
         </p>
+        <p className="mt-1 text-xs text-slate-500">
+          Güncelleme = aynı kaynak anahtarıyla mevcut kayıt yenilendi (başlık/url/tarih/rawText);
+          çift satır oluşmaz. Version artar; takipteysen “güncellendi” bayrağı açılır.
+        </p>
 
         {ingestReport && (
           <div
@@ -264,6 +268,9 @@ export function AdminPage() {
             }`}
           >
             <p className="font-medium">{ingestReport.summary}</p>
+            <p className="mt-1 text-xs text-slate-600">
+              Güncelleme = aynı kaynak anahtarıyla mevcut kayıt yenilendi; çift satır oluşmaz.
+            </p>
             <ul className="mt-2 space-y-1.5">
               {ingestReport.sources.map((s) => (
                 <li key={s.source} className="flex flex-wrap gap-x-3 gap-y-0.5">

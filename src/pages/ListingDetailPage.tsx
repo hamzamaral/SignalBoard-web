@@ -233,10 +233,12 @@ export function ListingDetailPage() {
         </section>
       )}
 
-      {data.examTopics && (
+      {showExamTopics(data.examTopics) && (
         <section className="rounded-xl border bg-white/80 p-4">
           <h2 className="mb-2 font-semibold">Sınav konuları</h2>
-          <pre className="whitespace-pre-wrap text-sm text-slate-700">{data.examTopics}</pre>
+          <pre className="whitespace-pre-wrap text-sm text-slate-700">
+            {stripExamHeading(data.examTopics!)}
+          </pre>
         </section>
       )}
 
@@ -269,4 +271,14 @@ function sourceLabel(source: string) {
     PRIVATE: 'Özel',
   };
   return map[source] ?? source;
+}
+
+function stripExamHeading(t: string) {
+  return t.replace(/^Sınav\s*Konuları\s*[;:.\-–]?\s*/i, '').trim();
+}
+
+function showExamTopics(t?: string | null) {
+  if (!t || t.trim().length < 20) return false;
+  if (/["'][A-Za-zÇĞİÖŞÜçğıöşü]?$/.test(t.trim())) return false;
+  return true;
 }
