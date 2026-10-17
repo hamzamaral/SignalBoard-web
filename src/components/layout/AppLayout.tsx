@@ -2,20 +2,24 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/features/auth/AuthContext';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
-  `rounded-md px-3 py-2 text-sm ${isActive ? 'bg-accent text-white' : 'text-slate-700 hover:bg-white/70'}`;
+  `px-2.5 py-1.5 text-sm ${
+    isActive
+      ? 'border-b-2 border-accent font-medium text-ink'
+      : 'text-slate-600 hover:text-ink'
+  }`;
 
 export function AppLayout() {
   const { user, logout, hasRole } = useAuth();
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-slate-200/80 bg-white/70 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4">
+    <div className="min-h-screen bg-slate-50">
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div>
-            <p className="font-display text-2xl font-bold tracking-tight text-ink">SignalBoard</p>
-            <p className="text-xs text-slate-500">Listing aggregator & deadline workflow</p>
+            <p className="font-display text-xl font-bold tracking-tight text-ink">SignalBoard</p>
+            <p className="text-xs text-slate-500">Kamu · Özel · Takvim</p>
           </div>
-          <nav className="flex flex-wrap gap-1">
+          <nav className="flex flex-wrap items-center gap-1">
             <NavLink to="/" end className={linkClass}>
               Özet
             </NavLink>
@@ -45,14 +49,14 @@ export function AppLayout() {
             <button
               type="button"
               onClick={() => void logout()}
-              className="rounded-md border border-slate-300 px-3 py-1.5 hover:bg-white"
+              className="rounded border border-slate-300 px-2.5 py-1 text-sm hover:bg-slate-50"
             >
               Çıkış
             </button>
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-8">
+      <main className="mx-auto max-w-7xl px-4 py-6">
         <Outlet />
       </main>
     </div>

@@ -5,21 +5,37 @@ import { api, getErrorMessage } from '@/lib/api';
 
 type PasteKind = 'PUBLIC' | 'PRIVATE';
 
+type IngestSourceResult = {
+  source: string;
+  upserted: number;
+  rawCount: number;
+  error?: string;
+  hint?: string;
+};
+
+type IngestReport = {
+  sources: IngestSourceResult[];
+  totalUpserted: number;
+  totalRaw: number;
+  ok: boolean;
+  summary: string;
+};
+
 const SOURCES = [
   {
     code: 'ILAN_GOV' as const,
     label: 'ilan.gov.tr',
-    hint: 'Resmi ilan portalından personel duyurularını çeker (özet kayıt).',
+    hint: 'Personel duyuruları (özet).',
   },
   {
     code: 'KAMUILAN' as const,
     label: 'Kamu İlan (SBB)',
-    hint: 'kamuilan.sbb.gov.tr ana sayfasındaki aktif ilan özetlerini toplar.',
+    hint: 'Ana sayfa aktif ilan özetleri + tarih aralığı.',
   },
   {
     code: 'YEREL_YONETIMLER' as const,
     label: 'Yerel Yönetimler (ÇŞB)',
-    hint: 'Belediye / yerel yönetim personel duyuru listesini tarar.',
+    hint: 'Personel duyuru linkleri.',
   },
 ];
 
@@ -42,6 +58,8 @@ export function AdminPage() {
   });
   const [llm, setLlm] = useState({ provider: 'OLLAMA', model: 'llama3.2', apiKey: '' });
   const [ingestBusy, setIngestBusy] = useState<string | null>(null);
+  const [ingestReport, setIngestReport] = useState<IngestReport | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const parse = useMutation({
     mutationFn: async (save: boolean) =>
@@ -55,9 +73,7 @@ export function AdminPage() {
       ).data,
     onSuccess: (_data, save) => {
       toast.success(save ? 'İlan kaydedildi' : 'Ayrıştırma tamam');
-      if (save) {
-        void qc.invalidateQueries({ queryKey: ['listings'] });
-      }
+      if (save) void qc.invalidateQueries({ queryKey: ['listings'] });
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
@@ -84,11 +100,34 @@ export function AdminPage() {
     const key = source ?? 'ALL';
     setIngestBusy(key);
     try {
-      const res = await api.post('/ingest/run', null, source ? { params: { source } } : undefined);
-      toast.success(source ? `${labelFor(source)} tamam` : 'Tüm kaynaklar tarandı');
-      console.info(res.data);
+      const res = await api.post<IngestReport>(
+        '/ingest/run',
+        null,
+        source ? { params: { source } } : undefined,
+      );
+      setIngestReport(res.data);
+      if (res.data.ok) {
+        toast.success(res.data.summary);
+      } else {
+        toast.error(res.data.summary || 'Çekilemedi');
+      }
       void qc.invalidateQueries({ queryKey: ['listings'] });
     } catch (e) {
+      setIngestReport({
+        sources: [
+          {
+            source: key,
+            upserted: 0,
+            rawCount: 0,
+            error: getErrorMessage(e),
+            hint: 'İstek başarısız',
+          },
+        ],
+        totalUpserted: 0,
+        totalRaw: 0,
+        ok: false,
+        summary: getErrorMessage(e),
+      });
       toast.error(getErrorMessage(e));
     } finally {
       setIngestBusy(null);
@@ -113,23 +152,22 @@ export function AdminPage() {
     | undefined;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
-        <h1 className="font-display text-3xl font-bold">Admin</h1>
-        <p className="text-slate-600">
-          İlan ekleme, e-posta / yapay zekâ ayarları ve kamu kaynaklarından otomatik toplama
-        </p>
-        <p className="mt-1 text-xs text-slate-400">
-          SMTP: {settings.data?.smtpConfigured ? 'hazır' : 'henüz yok'} · LLM:{' '}
+        <h1 className="font-display text-2xl font-bold tracking-tight">Admin</h1>
+        <p className="text-sm text-slate-600">
+          Yapıştır · kaynak tara · SMTP/LLM · SMTP:{' '}
+          {settings.data?.smtpConfigured ? 'hazır' : 'yok'} · LLM:{' '}
           {settings.data?.llm?.provider ?? '—'}
         </p>
       </div>
 
-      <section className="rounded-xl border bg-white/80 p-5">
-        <h2 className="font-semibold">İlan yapıştır → ayrıştır</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Hem kamu hem özel ilan metni yapıştırılabilir. Tam tarih / kadro tablosu için en güvenilir yol
-          budur.
+      <section className="border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          İlan yapıştır
+        </h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Tam tarih / kadro için birincil yol. Kamu veya özel seçin.
         </p>
         <div className="mt-3 flex gap-2">
           {(
@@ -142,7 +180,7 @@ export function AdminPage() {
               key={value}
               type="button"
               onClick={() => setPasteKind(value)}
-              className={`rounded-md px-3 py-1.5 text-sm ${
+              className={`rounded px-3 py-1.5 text-sm ${
                 pasteKind === value
                   ? 'bg-accent text-white'
                   : 'border border-slate-300 text-slate-700'
@@ -153,19 +191,19 @@ export function AdminPage() {
           ))}
         </div>
         <textarea
-          className="mt-3 min-h-40 w-full rounded-lg border p-3 text-sm"
+          className="mt-3 min-h-36 w-full rounded border border-slate-300 p-3 text-sm"
           value={paste}
           onChange={(e) => setPaste(e.target.value)}
           placeholder={
             pasteKind === 'PUBLIC'
-              ? 'Kamu ilanı metnini yapıştırın (ör. belediye memur alım ilanı)…'
+              ? 'Kamu ilanı metnini yapıştırın…'
               : 'Özel sektör ilanı metnini yapıştırın…'
           }
         />
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
-            className="rounded-md border px-3 py-2 text-sm"
+            className="rounded border px-3 py-2 text-sm"
             onClick={() => parse.mutate(false)}
             disabled={!paste.trim() || parse.isPending}
           >
@@ -173,7 +211,7 @@ export function AdminPage() {
           </button>
           <button
             type="button"
-            className="rounded-md bg-accent px-3 py-2 text-sm text-white"
+            className="rounded bg-accent px-3 py-2 text-sm text-white"
             onClick={() => parse.mutate(true)}
             disabled={!paste.trim() || parse.isPending}
           >
@@ -181,135 +219,56 @@ export function AdminPage() {
           </button>
         </div>
         {parsed && (
-          <div className="mt-4 rounded-lg border border-teal-100 bg-teal-50/60 p-4 text-sm">
-            <p className="font-medium text-ink">{parsed.title ?? 'Başlıksız'}</p>
-            <p className="mt-1 text-slate-600">
+          <div className="mt-3 border border-teal-200 bg-teal-50/70 p-3 text-sm">
+            <p className="font-medium">{parsed.title ?? 'Başlıksız'}</p>
+            <p className="text-slate-600">
               {parsed.institutionName ?? 'Kurum yok'}
               {parsed.city ? ` · ${parsed.city}` : ''}
             </p>
-            <p className="mt-1 text-slate-500">
+            <p className="text-slate-500">
               Başvuru: {fmtIso(parsed.applyStartAt)} – {fmtIso(parsed.applyEndAt)} · Kadro:{' '}
               {parsed.positions?.length ?? 0}
-            </p>
-            <p className="mt-2 text-xs text-slate-400">
-              Motor: {parse.data?.engine ?? 'rules'}
             </p>
           </div>
         )}
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-3 rounded-xl border bg-white/80 p-5">
-          <div>
-            <h2 className="font-semibold">E-posta (SMTP)</h2>
-            <p className="text-sm text-slate-500">
-              Uygun ilan bildirimi göndermek için. Key’ler veritabanında şifreli saklanır; GitHub’a
-              gitmez.
-            </p>
-          </div>
-          <Labeled label="Sunucu (host)">
-            <input
-              className="w-full rounded border px-3 py-2 text-sm"
-              value={smtp.host}
-              onChange={(e) => setSmtp({ ...smtp, host: e.target.value })}
-              placeholder="smtp.örnek.com"
-            />
-          </Labeled>
-          <Labeled label="Kullanıcı">
-            <input
-              className="w-full rounded border px-3 py-2 text-sm"
-              value={smtp.user}
-              onChange={(e) => setSmtp({ ...smtp, user: e.target.value })}
-            />
-          </Labeled>
-          <Labeled label="Şifre">
-            <input
-              type="password"
-              className="w-full rounded border px-3 py-2 text-sm"
-              value={smtp.pass}
-              onChange={(e) => setSmtp({ ...smtp, pass: e.target.value })}
-            />
-          </Labeled>
-          <Labeled label="Gönderen (from)">
-            <input
-              className="w-full rounded border px-3 py-2 text-sm"
-              value={smtp.from}
-              onChange={(e) => setSmtp({ ...smtp, from: e.target.value })}
-              placeholder="SignalBoard <noreply@örnek.com>"
-            />
-          </Labeled>
-          <Labeled label="Port">
-            <input
-              className="w-full rounded border px-3 py-2 text-sm"
-              type="number"
-              value={smtp.port}
-              onChange={(e) => setSmtp({ ...smtp, port: Number(e.target.value) })}
-            />
-          </Labeled>
-          <button
-            type="button"
-            className="rounded-md bg-accent px-3 py-2 text-sm text-white"
-            onClick={() => saveSmtp.mutate()}
-          >
-            SMTP kaydet
-          </button>
-        </div>
-
-        <div className="space-y-3 rounded-xl border bg-white/80 p-5">
-          <div>
-            <h2 className="font-semibold">Metin ayrıştırma (LLM)</h2>
-            <p className="text-sm text-slate-500">
-              Varsayılan Ollama yerelde ücretsiz çalışır. Gemini/Groq için API anahtarı isteğe bağlıdır.
-            </p>
-          </div>
-          <Labeled label="Sağlayıcı">
-            <select
-              className="w-full rounded border px-3 py-2 text-sm"
-              value={llm.provider}
-              onChange={(e) => setLlm({ ...llm, provider: e.target.value })}
-            >
-              <option value="OLLAMA">Ollama (yerel, ücretsiz)</option>
-              <option value="GEMINI">Gemini</option>
-              <option value="GROQ">Groq</option>
-              <option value="NONE">Kapalı (sadece kurallar)</option>
-            </select>
-          </Labeled>
-          <Labeled label="Model">
-            <input
-              className="w-full rounded border px-3 py-2 text-sm"
-              value={llm.model}
-              onChange={(e) => setLlm({ ...llm, model: e.target.value })}
-            />
-          </Labeled>
-          <Labeled label="API anahtarı (Gemini / Groq)">
-            <input
-              className="w-full rounded border px-3 py-2 text-sm"
-              type="password"
-              value={llm.apiKey}
-              onChange={(e) => setLlm({ ...llm, apiKey: e.target.value })}
-              placeholder="Boş bırakılabilir"
-            />
-          </Labeled>
-          <button
-            type="button"
-            className="rounded-md bg-accent px-3 py-2 text-sm text-white"
-            onClick={() => saveLlm.mutate()}
-          >
-            LLM kaydet
-          </button>
-        </div>
-      </section>
-
-      <section className="rounded-xl border bg-white/80 p-5">
-        <h2 className="font-semibold">Kaynaklardan otomatik topla</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Sitelerden özet ilan çeker. Tarih / kadro detayı eksik olabilir; tam metin için yukarıdaki
-          yapıştır alanını kullanın.
+      <section className="border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Kaynaklardan otomatik topla
+        </h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Özet çeker. Sonuç aşağıda görünür; 0 ise hata/hint yazılır. Tam metin için yapıştır.
         </p>
-        <div className="mt-4 space-y-3">
+
+        {ingestReport && (
+          <div
+            className={`mt-3 border p-3 text-sm ${
+              ingestReport.ok
+                ? 'border-emerald-200 bg-emerald-50'
+                : 'border-amber-300 bg-amber-50'
+            }`}
+          >
+            <p className="font-medium">{ingestReport.summary}</p>
+            <ul className="mt-2 space-y-1.5">
+              {ingestReport.sources.map((s) => (
+                <li key={s.source} className="flex flex-wrap gap-x-3 gap-y-0.5">
+                  <span className="font-medium">{labelFor(s.source)}</span>
+                  <span>
+                    {s.upserted} kaydedildi / {s.rawCount} ham
+                  </span>
+                  {s.error && <span className="text-red-700">Hata: {s.error}</span>}
+                  {s.hint && <span className="text-slate-600">{s.hint}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="mt-3 divide-y border border-slate-200">
           <SourceRow
             title="Hepsini tara"
-            hint="Üç kamu kaynağını sırayla çalıştırır."
+            hint="Üç kaynağı sırayla çalıştırır."
             busy={ingestBusy === 'ALL'}
             onClick={() => void runIngest()}
           />
@@ -324,11 +283,102 @@ export function AdminPage() {
           ))}
           <SourceRow
             title="Bekleyen mailleri gönder"
-            hint="Bildirim kuyruğundaki e-postaları SMTP ile yollar."
+            hint="SMTP kuyruğu."
             busy={flush.isPending}
             onClick={() => flush.mutate()}
           />
         </div>
+      </section>
+
+      <section className="border border-slate-200 bg-white">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold"
+          onClick={() => setSettingsOpen((v) => !v)}
+        >
+          <span>SMTP / LLM ayarları</span>
+          <span className="text-slate-400">{settingsOpen ? '−' : '+'}</span>
+        </button>
+        {settingsOpen && (
+          <div className="grid gap-4 border-t px-4 py-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <p className="text-xs text-slate-500">E-posta bildirimi için SMTP</p>
+              <Labeled label="Sunucu">
+                <input
+                  className="w-full rounded border px-3 py-2 text-sm"
+                  value={smtp.host}
+                  onChange={(e) => setSmtp({ ...smtp, host: e.target.value })}
+                />
+              </Labeled>
+              <Labeled label="Kullanıcı">
+                <input
+                  className="w-full rounded border px-3 py-2 text-sm"
+                  value={smtp.user}
+                  onChange={(e) => setSmtp({ ...smtp, user: e.target.value })}
+                />
+              </Labeled>
+              <Labeled label="Şifre">
+                <input
+                  type="password"
+                  className="w-full rounded border px-3 py-2 text-sm"
+                  value={smtp.pass}
+                  onChange={(e) => setSmtp({ ...smtp, pass: e.target.value })}
+                />
+              </Labeled>
+              <Labeled label="Gönderen">
+                <input
+                  className="w-full rounded border px-3 py-2 text-sm"
+                  value={smtp.from}
+                  onChange={(e) => setSmtp({ ...smtp, from: e.target.value })}
+                />
+              </Labeled>
+              <button
+                type="button"
+                className="rounded bg-accent px-3 py-2 text-sm text-white"
+                onClick={() => saveSmtp.mutate()}
+              >
+                SMTP kaydet
+              </button>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-slate-500">Ollama yerelde ücretsiz</p>
+              <Labeled label="Sağlayıcı">
+                <select
+                  className="w-full rounded border px-3 py-2 text-sm"
+                  value={llm.provider}
+                  onChange={(e) => setLlm({ ...llm, provider: e.target.value })}
+                >
+                  <option value="OLLAMA">Ollama</option>
+                  <option value="GEMINI">Gemini</option>
+                  <option value="GROQ">Groq</option>
+                  <option value="NONE">Kapalı</option>
+                </select>
+              </Labeled>
+              <Labeled label="Model">
+                <input
+                  className="w-full rounded border px-3 py-2 text-sm"
+                  value={llm.model}
+                  onChange={(e) => setLlm({ ...llm, model: e.target.value })}
+                />
+              </Labeled>
+              <Labeled label="API anahtarı">
+                <input
+                  className="w-full rounded border px-3 py-2 text-sm"
+                  type="password"
+                  value={llm.apiKey}
+                  onChange={(e) => setLlm({ ...llm, apiKey: e.target.value })}
+                />
+              </Labeled>
+              <button
+                type="button"
+                className="rounded bg-accent px-3 py-2 text-sm text-white"
+                onClick={() => saveLlm.mutate()}
+              >
+                LLM kaydet
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );
@@ -355,16 +405,16 @@ function SourceRow({
   onClick: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
       <div className="min-w-0 flex-1">
-        <p className="font-medium text-sm">{title}</p>
+        <p className="text-sm font-medium">{title}</p>
         <p className="text-xs text-slate-500">{hint}</p>
       </div>
       <button
         type="button"
         disabled={busy}
         onClick={onClick}
-        className="shrink-0 rounded-md border px-3 py-1.5 text-sm hover:bg-panel disabled:opacity-50"
+        className="shrink-0 rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50"
       >
         {busy ? 'Çalışıyor…' : 'Çalıştır'}
       </button>

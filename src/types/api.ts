@@ -28,6 +28,15 @@ export type ListingPosition = {
   kpssMinScore?: string | number | null;
 };
 
+export type MyTracking = {
+  id: string;
+  status: string;
+  applyChannel?: string | null;
+  mailOk?: boolean;
+  formOk?: boolean;
+  updatedFlag?: boolean;
+};
+
 export type Listing = {
   id: string;
   title: string;
@@ -41,6 +50,7 @@ export type Listing = {
   applyEndAt?: string | null;
   examAt?: string | null;
   resultAnnounceAt?: string | null;
+  publishedAt?: string | null;
   kpssScoreType?: string | null;
   kpssMinScore?: string | number | null;
   applicationMethods?: string[];
@@ -51,6 +61,7 @@ export type Listing = {
   institution?: { id: string; name: string } | null;
   positions?: ListingPosition[];
   possibleDup?: boolean;
+  myTracking?: MyTracking | null;
 };
 
 export type Profile = {
@@ -69,6 +80,9 @@ export type PipelineRow = {
   notes?: string | null;
   matchScore?: number | null;
   updatedFlag?: boolean;
+  applyChannel?: string | null;
+  mailOk?: boolean;
+  formOk?: boolean;
   listing: Listing;
   position?: ListingPosition | null;
 };
