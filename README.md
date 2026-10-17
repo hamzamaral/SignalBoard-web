@@ -20,7 +20,3 @@ Dev server: http://localhost:5173 (proxies `/api` → `http://localhost:3000`)
 Requires API running (see SignalBoard-api README).
 
 Demo login: `admin@signalboard.local` / `Admin123!`
-
-## Notes for agents
-
-Read **[AGENT_HANDOFF.md](./AGENT_HANDOFF.md)** (and the API handoff) before changing code.
