@@ -6,6 +6,7 @@ import { AuthProvider } from '@/features/auth/AuthContext';
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 import { AdminPage } from '@/pages/AdminPage';
 import { DashboardPage } from '@/pages/DashboardPage';
+import { ListingDetailPage } from '@/pages/ListingDetailPage';
 import { ListingsPage } from '@/pages/ListingsPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { PipelinePage } from '@/pages/PipelinePage';
@@ -34,6 +35,7 @@ const router = createBrowserRouter([
         children: [
           { path: '/', element: <DashboardPage /> },
           { path: '/listings', element: <ListingsPage kind="PUBLIC" /> },
+          { path: '/listings/:id', element: <ListingDetailPage /> },
           { path: '/private', element: <ListingsPage kind="PRIVATE" /> },
           { path: '/pipeline', element: <PipelinePage /> },
           { path: '/profile', element: <ProfilePage /> },

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api, getErrorMessage } from '@/lib/api';
 import type { Listing } from '@/types/api';
@@ -43,23 +44,37 @@ export function ListingsPage({ kind = 'PUBLIC' }: { kind?: 'PUBLIC' | 'PRIVATE' 
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold">{item.title}</h2>
+                <Link to={`/listings/${item.id}`} className="text-lg font-semibold hover:text-accent">
+                  {item.title}
+                </Link>
                 <p className="text-sm text-slate-600">
                   {item.institution?.name ?? 'Kurum yok'} · {item.city ?? 'Şehir yok'} ·{' '}
                   {item.source}
                   {item.possibleDup ? ' · olası tekrar' : ''}
+                  {(item.positions?.length ?? 0) > 0
+                    ? ` · ${item.positions!.length} kadro`
+                    : ''}
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
                   Son başvuru:{' '}
                   {item.applyEndAt
                     ? new Date(item.applyEndAt).toLocaleDateString('tr-TR')
                     : '—'}
+                  {item.examAt
+                    ? ` · Sınav: ${new Date(item.examAt).toLocaleDateString('tr-TR')}`
+                    : ''}
                   {item.kpssScoreType
                     ? ` · KPSS ${item.kpssScoreType} ≥ ${item.kpssMinScore ?? '?'}`
                     : ''}
                 </p>
               </div>
               <div className="flex gap-2">
+                <Link
+                  to={`/listings/${item.id}`}
+                  className="rounded-md border px-3 py-1.5 text-sm"
+                >
+                  Detay
+                </Link>
                 {item.url && (
                   <a
                     href={item.url}

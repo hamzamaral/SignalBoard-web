@@ -15,6 +15,19 @@ export type AuthResponse = {
   expiresIn: string;
 };
 
+export type ListingPosition = {
+  id: string;
+  sequenceNo: number;
+  title: string;
+  serviceClass?: string | null;
+  grade?: number | null;
+  quota?: number | null;
+  educationRequirement?: string | null;
+  gender?: string | null;
+  kpssScoreType?: string | null;
+  kpssMinScore?: string | number | null;
+};
+
 export type Listing = {
   id: string;
   title: string;
@@ -24,10 +37,19 @@ export type Listing = {
   source: string;
   status: string;
   url?: string | null;
+  applyStartAt?: string | null;
   applyEndAt?: string | null;
+  examAt?: string | null;
+  resultAnnounceAt?: string | null;
   kpssScoreType?: string | null;
   kpssMinScore?: string | number | null;
+  applicationMethods?: string[];
+  requiredDocuments?: string[];
+  generalRequirements?: string | null;
+  specialRequirements?: string | null;
+  examTopics?: string | null;
   institution?: { id: string; name: string } | null;
+  positions?: ListingPosition[];
   possibleDup?: boolean;
 };
 
@@ -39,4 +61,14 @@ export type Profile = {
   skills: string[];
   targetTitles: string[];
   emailAlerts: boolean;
+};
+
+export type PipelineRow = {
+  id: string;
+  status: string;
+  notes?: string | null;
+  matchScore?: number | null;
+  updatedFlag?: boolean;
+  listing: Listing;
+  position?: ListingPosition | null;
 };

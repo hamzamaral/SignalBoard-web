@@ -178,8 +178,27 @@ export function AdminPage() {
           className="rounded-md border px-3 py-2 text-sm"
           onClick={() => ingest.mutate()}
         >
-          ilan.gov.tr ingest
+          Tüm kaynakları tara
         </button>
+        {(['ILAN_GOV', 'KAMUILAN', 'YEREL_YONETIMLER'] as const).map((source) => (
+          <button
+            key={source}
+            type="button"
+            className="rounded-md border px-3 py-2 text-sm"
+            onClick={() =>
+              api
+                .post('/ingest/run', null, { params: { source } })
+                .then((res) => {
+                  toast.success(`${source} tamam`);
+                  console.info(res.data);
+                  void qc.invalidateQueries({ queryKey: ['listings'] });
+                })
+                .catch((e) => toast.error(getErrorMessage(e)))
+            }
+          >
+            {source}
+          </button>
+        ))}
         <button
           type="button"
           className="rounded-md border px-3 py-2 text-sm"

@@ -26,7 +26,7 @@ export function AppLayout() {
               Özel
             </NavLink>
             <NavLink to="/pipeline" className={linkClass}>
-              Pipeline
+              Başvurularım
             </NavLink>
             <NavLink to="/profile" className={linkClass}>
               Profil
