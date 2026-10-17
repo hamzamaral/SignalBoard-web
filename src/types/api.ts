@@ -1,0 +1,42 @@
+export type Role = 'ADMIN' | 'USER';
+
+export type User = {
+  id: string;
+  email: string;
+  fullName: string;
+  role: Role;
+  isActive: boolean;
+};
+
+export type AuthResponse = {
+  user: User;
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: string;
+};
+
+export type Listing = {
+  id: string;
+  title: string;
+  position?: string | null;
+  city?: string | null;
+  kind: 'PUBLIC' | 'PRIVATE';
+  source: string;
+  status: string;
+  url?: string | null;
+  applyEndAt?: string | null;
+  kpssScoreType?: string | null;
+  kpssMinScore?: string | number | null;
+  institution?: { id: string; name: string } | null;
+  possibleDup?: boolean;
+};
+
+export type Profile = {
+  education?: string | null;
+  preferredCity?: string | null;
+  kpssScores: Record<string, number>;
+  certificates: string[];
+  skills: string[];
+  targetTitles: string[];
+  emailAlerts: boolean;
+};
