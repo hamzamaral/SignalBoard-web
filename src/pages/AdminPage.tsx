@@ -28,17 +28,17 @@ const SOURCES = [
   {
     code: 'ILAN_GOV' as const,
     label: 'ilan.gov.tr',
-    hint: 'Personel duyuruları (özet).',
+    hint: 'Kamu personel kategorisinin tamamı.',
   },
   {
     code: 'KAMUILAN' as const,
     label: 'Kamu İlan (SBB)',
-    hint: 'Ana sayfa aktif ilan özetleri + tarih aralığı.',
+    hint: 'Tüm ilanlar listesi.',
   },
   {
     code: 'YEREL_YONETIMLER' as const,
     label: 'Yerel Yönetimler (ÇŞB)',
-    hint: 'Personel duyuru linkleri.',
+    hint: 'Duyuru listesinin bütün sayfaları.',
   },
 ];
 

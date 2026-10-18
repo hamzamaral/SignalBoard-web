@@ -1,7 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { TagSelect } from '@/components/TagSelect';
 import { api, getErrorMessage } from '@/lib/api';
+import {
+  CERTIFICATE_OPTIONS,
+  SKILL_OPTIONS,
+  TARGET_TITLE_OPTIONS,
+} from '@/lib/profile-options';
 import type { Profile } from '@/types/api';
 
 export function ProfilePage() {
@@ -16,9 +22,9 @@ export function ProfilePage() {
     preferredCity: '',
     kpssP3: '',
     kpssP93: '',
-    skills: '',
-    certificates: '',
-    targetTitles: '',
+    skills: [] as string[],
+    certificates: [] as string[],
+    targetTitles: [] as string[],
     emailAlerts: true,
   });
 
@@ -29,9 +35,9 @@ export function ProfilePage() {
       preferredCity: data.preferredCity ?? '',
       kpssP3: String(data.kpssScores?.P3 ?? ''),
       kpssP93: String(data.kpssScores?.P93 ?? ''),
-      skills: (data.skills ?? []).join(', '),
-      certificates: (data.certificates ?? []).join(', '),
-      targetTitles: (data.targetTitles ?? []).join(', '),
+      skills: data.skills ?? [],
+      certificates: data.certificates ?? [],
+      targetTitles: data.targetTitles ?? [],
       emailAlerts: data.emailAlerts,
     });
   }, [data]);
@@ -45,9 +51,9 @@ export function ProfilePage() {
         education: form.education || undefined,
         preferredCity: form.preferredCity || undefined,
         kpssScores,
-        skills: splitCsv(form.skills),
-        certificates: splitCsv(form.certificates),
-        targetTitles: splitCsv(form.targetTitles),
+        skills: form.skills,
+        certificates: form.certificates,
+        targetTitles: form.targetTitles,
         emailAlerts: form.emailAlerts,
       });
     },
@@ -76,20 +82,24 @@ export function ProfilePage() {
           <Field label="KPSS P3" value={form.kpssP3} onChange={(v) => setForm({ ...form, kpssP3: v })} />
           <Field label="KPSS P93" value={form.kpssP93} onChange={(v) => setForm({ ...form, kpssP93: v })} />
         </div>
-        <Field
-          label="Yetkinlikler (virgülle)"
+        <TagSelect
+          label="Yetkinlikler"
+          options={SKILL_OPTIONS}
           value={form.skills}
-          onChange={(v) => setForm({ ...form, skills: v })}
+          onChange={(skills) => setForm({ ...form, skills })}
         />
-        <Field
-          label="Sertifikalar (virgülle)"
+        <TagSelect
+          label="Sertifikalar"
+          options={CERTIFICATE_OPTIONS}
           value={form.certificates}
-          onChange={(v) => setForm({ ...form, certificates: v })}
+          onChange={(certificates) => setForm({ ...form, certificates })}
         />
-        <Field
-          label="Hedef unvanlar (virgülle)"
+        <TagSelect
+          label="Hedef unvanlar"
+          options={TARGET_TITLE_OPTIONS}
           value={form.targetTitles}
-          onChange={(v) => setForm({ ...form, targetTitles: v })}
+          placeholder="Zabıt katibi, İKM, hemşire…"
+          onChange={(targetTitles) => setForm({ ...form, targetTitles })}
         />
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -130,11 +140,4 @@ function Field({
       />
     </label>
   );
-}
-
-function splitCsv(s: string) {
-  return s
-    .split(',')
-    .map((x) => x.trim())
-    .filter(Boolean);
 }

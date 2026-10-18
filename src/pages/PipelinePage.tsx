@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api, getErrorMessage } from '@/lib/api';
-import { downloadXlsx } from '@/lib/excel';
+import { downloadWorkbook } from '@/lib/excel';
 import {
   PIPELINE_STATUSES,
   TIMELINE_STEPS,
@@ -15,6 +15,7 @@ import type { PipelineRow } from '@/types/api';
 export function PipelinePage() {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [kindFilter, setKindFilter] = useState<'' | 'PUBLIC' | 'PRIVATE'>('');
   const [deadlineOnly, setDeadlineOnly] = useState(false);
   const [q, setQ] = useState('');
   const [addedFrom, setAddedFrom] = useState('');
@@ -48,6 +49,9 @@ export function PipelinePage() {
         return hay.includes(needle);
       });
     }
+    if (kindFilter) {
+      rows = rows.filter((r) => (r.listing.kind ?? 'PUBLIC') === kindFilter);
+    }
     if (deadlineOnly) {
       const in14 = Date.now() + 14 * 86400000;
       rows = rows.filter((r) => {
@@ -64,7 +68,7 @@ export function PipelinePage() {
       rows = rows.filter((r) => new Date(r.createdAt ?? 0).getTime() <= to);
     }
     return rows;
-  }, [data, deadlineOnly, q, addedFrom, addedTo]);
+  }, [data, deadlineOnly, q, addedFrom, addedTo, kindFilter]);
 
   const update = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
@@ -86,26 +90,33 @@ export function PipelinePage() {
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
+  function toExcelRow(row: PipelineRow) {
+    return {
+      İlan: row.listing.title,
+      Kurum: row.listing.institution?.name ?? '',
+      Durum: statusLabel(row.status),
+      Kadro: row.position?.title ?? '',
+      'Başvuru sonu': row.listing.applyEndAt
+        ? new Date(row.listing.applyEndAt).toLocaleDateString('tr-TR')
+        : '',
+      Eklenme: row.createdAt ? new Date(row.createdAt).toLocaleDateString('tr-TR') : '',
+      Not: row.notes ?? '',
+      URL: row.listing.url ?? '',
+    };
+  }
+
   function exportExcel() {
-    downloadXlsx(
-      'basvurularim.xlsx',
-      filtered.map((row) => ({
-        İlan: row.listing.title,
-        Kurum: row.listing.institution?.name ?? '',
-        Durum: statusLabel(row.status),
-        Kadro: row.position?.title ?? '',
-        'Başvuru sonu': row.listing.applyEndAt
-          ? new Date(row.listing.applyEndAt).toLocaleDateString('tr-TR')
-          : '',
-        Eklenme: row.createdAt
-          ? new Date(row.createdAt).toLocaleDateString('tr-TR')
-          : '',
-        Not: row.notes ?? '',
-        URL: row.listing.url ?? '',
-      })),
-      'Başvurularım',
+    const kamu = filtered.filter((row) => row.listing.kind !== 'PRIVATE').map(toExcelRow);
+    const ozel = filtered.filter((row) => row.listing.kind === 'PRIVATE').map(toExcelRow);
+    downloadWorkbook('basvurularim.xlsx', [
+      { name: 'Kamu', rows: kamu },
+      { name: 'Özel', rows: ozel },
+    ]);
+    toast.success(
+      kamu.length && ozel.length
+        ? 'Excel indirildi (Kamu ve Özel ayrı sayfalar)'
+        : 'Excel indirildi',
     );
-    toast.success('Excel indirildi');
   }
 
   return (
@@ -136,6 +147,18 @@ export function PipelinePage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block text-slate-500">Tür</span>
+          <select
+            className="rounded border px-2 py-1.5 text-sm"
+            value={kindFilter}
+            onChange={(e) => setKindFilter(e.target.value as '' | 'PUBLIC' | 'PRIVATE')}
+          >
+            <option value="">Tümü</option>
+            <option value="PUBLIC">Kamu</option>
+            <option value="PRIVATE">Özel</option>
+          </select>
         </label>
         <label className="block text-sm">
           <span className="mb-1 block text-slate-500">Durum</span>
@@ -189,6 +212,15 @@ export function PipelinePage() {
                   {row.listing.title}
                 </Link>
                 <p className="text-xs text-slate-500">
+                  <span
+                    className={`mr-1.5 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                      row.listing.kind === 'PRIVATE'
+                        ? 'bg-violet-100 text-violet-800'
+                        : 'bg-sky-100 text-sky-800'
+                    }`}
+                  >
+                    {row.listing.kind === 'PRIVATE' ? 'Özel' : 'Kamu'}
+                  </span>
                   {row.listing.institution?.name ?? '—'}
                   {row.position ? ` · Kadro: ${row.position.title}` : ''}
                   {row.matchScore != null ? ` · Skor: ${row.matchScore}` : ''}
