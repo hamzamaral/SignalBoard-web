@@ -2,6 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import {
+  CompanyApplicationChart,
+  CompanyChartButton,
+} from '@/components/CompanyApplicationChart';
 import { api, getErrorMessage } from '@/lib/api';
 import { downloadWorkbook } from '@/lib/excel';
 import {
@@ -20,6 +24,7 @@ export function PipelinePage() {
   const [q, setQ] = useState('');
   const [addedFrom, setAddedFrom] = useState('');
   const [addedTo, setAddedTo] = useState('');
+  const [chartOpen, setChartOpen] = useState(false);
 
   const { data } = useQuery({
     queryKey: ['pipeline', statusFilter],
@@ -128,15 +133,27 @@ export function PipelinePage() {
             Takip, arama, eklenme tarihi · silme · durum · Excel
           </p>
         </div>
-        <button
-          type="button"
-          onClick={exportExcel}
-          disabled={!filtered.length}
-          className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-40"
-        >
-          Excel indir
-        </button>
+        <div className="flex gap-2">
+          <CompanyChartButton open={chartOpen} onToggle={() => setChartOpen((open) => !open)} />
+          <button
+            type="button"
+            onClick={exportExcel}
+            disabled={!filtered.length}
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-40"
+          >
+            Excel indir
+          </button>
+        </div>
       </div>
+
+      {chartOpen && (
+        <CompanyApplicationChart
+          rows={filtered.map((row) => ({
+            name: row.listing.institution?.name?.trim() || row.listing.title,
+            applied: true,
+          }))}
+        />
+      )}
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="block text-sm">

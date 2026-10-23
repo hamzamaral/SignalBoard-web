@@ -1,15 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { ListingForm, formToBody, listingToForm, type ListingFormValues } from '@/components/ListingForm';
+import { useAuth } from '@/features/auth/AuthContext';
 import { api, getErrorMessage } from '@/lib/api';
 import type { Listing } from '@/types/api';
 
 export function ListingDetailPage() {
   const { id } = useParams();
   const qc = useQueryClient();
+  const { hasRole } = useAuth();
+  const isAdmin = hasRole('ADMIN');
   const [notes, setNotes] = useState('');
   const [enrichText, setEnrichText] = useState('');
+  const [edit, setEdit] = useState<ListingFormValues | null>(null);
+  const openedId = useRef<string | undefined>(undefined);
 
   const { data, isLoading } = useQuery({
     queryKey: ['listing', id],
@@ -20,6 +26,12 @@ export function ListingDetailPage() {
   useEffect(() => {
     setNotes(data?.myTracking?.notes ?? '');
   }, [data?.myTracking?.notes, data?.id]);
+
+  useEffect(() => {
+    if (!data || openedId.current === data.id) return;
+    openedId.current = data.id;
+    setEdit(listingToForm(data));
+  }, [data]);
 
   const track = useMutation({
     mutationFn: (positionId?: string) =>
@@ -43,6 +55,19 @@ export function ListingDetailPage() {
       toast.success('Not kaydedildi');
       void qc.invalidateQueries({ queryKey: ['listing', id] });
       void qc.invalidateQueries({ queryKey: ['pipeline'] });
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  const saveListing = useMutation({
+    mutationFn: async () => {
+      if (!edit) return null;
+      return (await api.patch<Listing>(`/listings/${id}`, formToBody(edit, 'edit'))).data;
+    },
+    onSuccess: () => {
+      toast.success('İlan güncellendi');
+      void qc.invalidateQueries({ queryKey: ['listing', id] });
+      void qc.invalidateQueries({ queryKey: ['listings'] });
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
@@ -87,6 +112,23 @@ export function ListingDetailPage() {
             : ''}
         </p>
       </div>
+
+      {isAdmin && edit && (
+        <section id="duzenle" className="rounded-xl border bg-white/80 p-4">
+          <h2 className="font-semibold">İlanı düzenle</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Başlık, tarihler, kurum ve durum burada güncellenir. Kaynak taraması sürerken de
+            kaydedebilirsin.
+          </p>
+          <ListingForm
+            mode="edit"
+            values={edit}
+            onChange={setEdit}
+            pending={saveListing.isPending}
+            onSubmit={() => saveListing.mutate()}
+          />
+        </section>
+      )}
 
       {thin && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-950">

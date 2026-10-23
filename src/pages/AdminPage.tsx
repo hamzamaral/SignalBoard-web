@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { ListingForm, emptyListingForm, formToBody, type ListingFormValues } from '@/components/ListingForm';
 import { api, getErrorMessage } from '@/lib/api';
 
 type PasteKind = 'PUBLIC' | 'PRIVATE';
@@ -22,6 +23,17 @@ type IngestReport = {
   totalRaw: number;
   ok: boolean;
   summary: string;
+};
+
+type IngestJob = {
+  running: boolean;
+  requested: string | null;
+  current: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  completed: IngestSourceResult[];
+  report: IngestReport | null;
+  error: string | null;
 };
 
 const SOURCES = [
@@ -51,6 +63,9 @@ export function AdminPage() {
 
   const [paste, setPaste] = useState('');
   const [pasteKind, setPasteKind] = useState<PasteKind>('PUBLIC');
+  const [manual, setManual] = useState<ListingFormValues>(() => emptyListingForm());
+  const [draftText, setDraftText] = useState('');
+  const [draftParsed, setDraftParsed] = useState<ParsedFields | null>(null);
   const [smtp, setSmtp] = useState({
     host: '',
     port: 587,
@@ -60,9 +75,94 @@ export function AdminPage() {
     from: '',
   });
   const [llm, setLlm] = useState({ provider: 'OLLAMA', model: 'llama3.2', apiKey: '' });
-  const [ingestBusy, setIngestBusy] = useState<string | null>(null);
   const [ingestReport, setIngestReport] = useState<IngestReport | null>(null);
+  const seenFinish = useRef<string | null | undefined>(undefined);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const ingestStatus = useQuery({
+    queryKey: ['ingest-status'],
+    queryFn: async () => (await api.get<IngestJob>('/ingest/status')).data,
+    refetchInterval: (query) => (query.state.data?.running ? 2000 : false),
+  });
+  const ingestJob = ingestStatus.data;
+  const elapsed = useElapsed(ingestJob?.startedAt, Boolean(ingestJob?.running));
+
+  useEffect(() => {
+    const job = ingestStatus.data;
+    if (!job) return;
+    if (seenFinish.current === undefined) {
+      seenFinish.current = job.finishedAt;
+      if (job.report) setIngestReport(job.report);
+      return;
+    }
+    if (job.running || !job.finishedAt || seenFinish.current === job.finishedAt) return;
+    seenFinish.current = job.finishedAt;
+    if (job.report) {
+      setIngestReport(job.report);
+      if (job.report.ok) toast.success(job.report.summary);
+      else toast.error(job.report.summary || 'Çekilemedi');
+      void qc.invalidateQueries({ queryKey: ['listings'] });
+    } else if (job.error) {
+      toast.error(job.error);
+    }
+  }, [ingestStatus.data, qc]);
+
+  const createManual = useMutation({
+    mutationFn: async () =>
+      (
+        await api.post('/listings', {
+          ...formToBody(manual, 'create'),
+          ...extrasFromParsed(draftParsed, draftText),
+        })
+      ).data,
+    onSuccess: () => {
+      toast.success('İlan eklendi');
+      setManual(emptyListingForm(manual.kind));
+      setDraftText('');
+      setDraftParsed(null);
+      void qc.invalidateQueries({ queryKey: ['listings'] });
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  const fillFromText = useMutation({
+    mutationFn: async () =>
+      (
+        await api.post<{ parsed: ParsedFields; engine: string }>('/listings/parse', {
+          text: draftText,
+          save: false,
+          kind: manual.kind,
+        })
+      ).data,
+    onSuccess: (data) => {
+      const parsed = data.parsed ?? {};
+      const replace = parsed.shape === 'job-board';
+      const keep = (next?: string, previous?: string) =>
+        replace ? next || '' : next || previous || '';
+      setDraftParsed(parsed);
+      setManual((current) => ({
+        ...current,
+        kind: parsed.kind === 'PRIVATE' || parsed.kind === 'PUBLIC' ? parsed.kind : current.kind,
+        title: keep(parsed.title, current.title),
+        institutionName: keep(parsed.institutionName, current.institutionName),
+        city: keep(parsed.city, current.city),
+        position: keep(parsed.position || parsed.positions?.[0]?.title, current.position),
+        url: keep(parsed.url, current.url),
+        publishedAt: isoDay(parsed.publishedAt),
+        applyStartAt: isoDay(parsed.applyStartAt),
+        applyEndAt: isoDay(parsed.applyEndAt),
+        examAt: isoDay(parsed.examAt),
+        resultAnnounceAt: isoDay(parsed.resultAnnounceAt),
+        description: keep(parsed.description, current.description || summaryOf(parsed)),
+      }));
+      toast.success(
+        data.engine === 'rules+llm'
+          ? 'Yapay zeka ve kurallar alanları doldurdu. Kontrol edip kaydet.'
+          : 'Alanlar dolduruldu. Kontrol edip kaydet.',
+      );
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
 
   const parse = useMutation({
     mutationFn: async (save: boolean) =>
@@ -100,40 +200,20 @@ export function AdminPage() {
   });
 
   async function runIngest(source?: string) {
-    const key = source ?? 'ALL';
-    setIngestBusy(key);
     try {
-      const res = await api.post<IngestReport>(
+      const res = await api.post<{ started: boolean; job: IngestJob }>(
         '/ingest/run',
         null,
         source ? { params: { source } } : undefined,
       );
-      setIngestReport(res.data);
-      if (res.data.ok) {
-        toast.success(res.data.summary);
+      qc.setQueryData(['ingest-status'], res.data.job);
+      if (res.data.started) {
+        toast.message('Tarama arka planda başladı. İlan ekleyip güncellemeye devam edebilirsin.');
       } else {
-        toast.error(res.data.summary || 'Çekilemedi');
+        toast.message('Bir tarama zaten sürüyor.');
       }
-      void qc.invalidateQueries({ queryKey: ['listings'] });
     } catch (e) {
-      setIngestReport({
-        sources: [
-          {
-            source: key,
-            upserted: 0,
-            rawCount: 0,
-            error: getErrorMessage(e),
-            hint: 'İstek başarısız',
-          },
-        ],
-        totalUpserted: 0,
-        totalRaw: 0,
-        ok: false,
-        summary: getErrorMessage(e),
-      });
       toast.error(getErrorMessage(e));
-    } finally {
-      setIngestBusy(null);
     }
   }
 
@@ -175,6 +255,56 @@ export function AdminPage() {
           {settings.data?.llm?.provider ?? '—'}
         </p>
       </div>
+
+      <section className="border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Manuel ilan ekle
+        </h2>
+        <p className="mt-1 text-sm text-slate-600">
+          İlan metnini yapıştır; yapay zeka ve kurallar alanları doldursun. Kontrol edip kaydet.
+          Mevcut ilanı düzenlemek için listeden detaya gir.
+        </p>
+        <label className="mt-3 block text-sm">
+          <span className="mb-1 block text-slate-600">İlan metni</span>
+          <textarea
+            className="min-h-36 w-full rounded border border-slate-300 p-3 text-sm"
+            value={draftText}
+            onChange={(e) => setDraftText(e.target.value)}
+            placeholder="Belediye veya kurum ilanının tam metnini buraya yapıştır…"
+          />
+        </label>
+        <button
+          type="button"
+          className="mt-2 rounded border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+          disabled={draftText.trim().length < 20 || fillFromText.isPending}
+          onClick={() => fillFromText.mutate()}
+        >
+          {fillFromText.isPending ? 'Dolduruluyor…' : 'Metinden doldur'}
+        </button>
+        {draftParsed?.positions?.length ? (
+          <ul className="mt-3 space-y-1 border border-teal-200 bg-teal-50/70 p-3 text-sm">
+            {draftParsed.positions.map((p) => (
+              <li key={`${p.sequenceNo}-${p.title}`}>
+                {p.sequenceNo ? `${p.sequenceNo}. ` : ''}
+                {p.title}
+                {p.serviceClass ? ` · ${p.serviceClass}` : ''}
+                {p.grade ? ` · derece ${p.grade}` : ''}
+                {p.quota ? ` · ${p.quota} adet` : ''}
+                {p.kpssScoreType ? ` · ${p.kpssScoreType}` : ''}
+                {p.kpssMinScore ? ` ≥ ${p.kpssMinScore}` : ''}
+                {p.gender ? ` · ${p.gender}` : ''}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <ListingForm
+          mode="create"
+          values={manual}
+          onChange={setManual}
+          pending={createManual.isPending}
+          onSubmit={() => createManual.mutate()}
+        />
+      </section>
 
       <section className="border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -252,12 +382,30 @@ export function AdminPage() {
           Kaynaklardan otomatik topla
         </h2>
         <p className="mt-1 text-sm text-slate-600">
-          Özet çeker. Sonuç aşağıda görünür; 0 ise hata/hint yazılır. Tam metin için yapıştır.
+          Özet çeker ve arka planda sürer; tam tarama birkaç dakika sürebilir. Bu sırada yukarıdan
+          ilan ekleyebilir, ilan detayından mevcut kaydı güncelleyebilirsin.
         </p>
         <p className="mt-1 text-xs text-slate-500">
           Güncelleme = aynı kaynak anahtarıyla mevcut kayıt yenilendi (başlık/url/tarih/rawText);
           çift satır oluşmaz. Version artar; takipteysen “güncellendi” bayrağı açılır.
         </p>
+
+        {ingestJob?.running && (
+          <p className="mt-3 border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
+            {labelFor(ingestJob.current ?? ingestJob.requested ?? '')} taranıyor
+            {elapsed ? ` · ${elapsed}` : ''}. Sayfadan çıksan da devam eder.
+          </p>
+        )}
+
+        {(ingestJob?.completed.length ?? 0) > 0 && ingestJob?.running && (
+          <ul className="mt-2 space-y-1 text-sm text-slate-600">
+            {ingestJob.completed.map((s) => (
+              <li key={s.source}>
+                {labelFor(s.source)}: {s.created ?? 0} yeni · {s.updated ?? 0} güncellendi
+              </li>
+            ))}
+          </ul>
+        )}
 
         {ingestReport && (
           <div
@@ -295,8 +443,9 @@ export function AdminPage() {
         <div className="mt-3 divide-y border border-slate-200">
           <SourceRow
             title="Hepsini tara"
-            hint="Üç kaynağı sırayla çalıştırır."
-            busy={ingestBusy === 'ALL'}
+            hint="Üç kaynağı sırayla, arka planda çalıştırır."
+            label={scanLabel('ALL', ingestJob, elapsed)}
+            disabled={Boolean(ingestJob?.running)}
             onClick={() => void runIngest()}
           />
           {SOURCES.map((s) => (
@@ -304,14 +453,16 @@ export function AdminPage() {
               key={s.code}
               title={s.label}
               hint={s.hint}
-              busy={ingestBusy === s.code}
+              label={scanLabel(s.code, ingestJob, elapsed)}
+              disabled={Boolean(ingestJob?.running)}
               onClick={() => void runIngest(s.code)}
             />
           ))}
           <SourceRow
             title="Bekleyen mailleri gönder"
             hint="SMTP kuyruğu — önce SMTP ayarlarını kaydedin."
-            busy={flush.isPending}
+            label={flush.isPending ? 'Çalışıyor…' : 'Çalıştır'}
+            disabled={flush.isPending}
             onClick={() => flush.mutate()}
           />
         </div>
@@ -433,12 +584,14 @@ function Labeled({ label, children }: { label: string; children: React.ReactNode
 function SourceRow({
   title,
   hint,
-  busy,
+  label,
+  disabled,
   onClick,
 }: {
   title: string;
   hint: string;
-  busy?: boolean;
+  label: string;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -449,14 +602,130 @@ function SourceRow({
       </div>
       <button
         type="button"
-        disabled={busy}
+        disabled={disabled}
         onClick={onClick}
         className="shrink-0 rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50"
       >
-        {busy ? 'Çalışıyor…' : 'Çalıştır'}
+        {label}
       </button>
     </div>
   );
+}
+
+function scanLabel(code: string, job: IngestJob | undefined, elapsed: string) {
+  if (!job?.running) return 'Çalıştır';
+  if (job.current === code || (code === 'ALL' && job.requested === 'ALL')) {
+    return elapsed ? `Çalışıyor… ${elapsed}` : 'Çalışıyor…';
+  }
+  if (job.requested !== 'ALL') return 'Beklemede';
+  const order = SOURCES.map((s) => s.code);
+  const current = order.indexOf(job.current as (typeof order)[number]);
+  const mine = order.indexOf(code as (typeof order)[number]);
+  if (mine >= 0 && current >= 0 && mine < current) return 'Bitti';
+  return 'Sırada';
+}
+
+function useElapsed(startedAt: string | null | undefined, running: boolean) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [running]);
+  if (!running || !startedAt) return '';
+  const seconds = Math.max(0, Math.floor((now - new Date(startedAt).getTime()) / 1000));
+  const minutes = Math.floor(seconds / 60);
+  return minutes > 0 ? `${minutes} dk ${seconds % 60} sn` : `${seconds} sn`;
+}
+
+type ParsedFields = {
+  kind?: 'PUBLIC' | 'PRIVATE';
+  description?: string;
+  shape?: 'job-board';
+  institutionName?: string;
+  title?: string;
+  position?: string;
+  city?: string;
+  url?: string;
+  publishedAt?: string;
+  educationLevel?: string;
+  kpssScoreType?: string;
+  kpssMinScore?: number;
+  quota?: number;
+  applyStartAt?: string;
+  applyEndAt?: string;
+  examAt?: string;
+  resultAnnounceAt?: string;
+  applicationPlace?: string;
+  applicationMethods?: string[];
+  requiredDocuments?: string[];
+  generalRequirements?: string;
+  specialRequirements?: string;
+  examTopics?: string;
+  evaluationNotes?: string;
+  positions?: Array<{
+    sequenceNo?: number;
+    title: string;
+    serviceClass?: string;
+    grade?: number;
+    quota?: number;
+    gender?: string;
+    educationRequirement?: string;
+    kpssScoreType?: string;
+    kpssMinScore?: number;
+  }>;
+};
+
+function isoDay(value?: string) {
+  if (!value) return '';
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value);
+  return match ? match[1] : '';
+}
+
+function summaryOf(parsed: ParsedFields) {
+  const first = parsed.positions?.[0];
+  const bits = [
+    parsed.institutionName,
+    first ? `${first.title}${first.quota ? ` (${first.quota})` : ''}` : parsed.position,
+    first?.kpssScoreType ? `${first.kpssScoreType} ≥ ${first.kpssMinScore ?? '?'}` : '',
+  ].filter(Boolean);
+  return bits.join(' · ');
+}
+
+function extrasFromParsed(parsed: ParsedFields | null, raw: string) {
+  const body: Record<string, unknown> = {};
+  if (raw.trim()) body.rawText = raw.trim();
+  if (!parsed) return body;
+  const textKeys = [
+    'educationLevel',
+    'kpssScoreType',
+    'applicationPlace',
+    'generalRequirements',
+    'specialRequirements',
+    'examTopics',
+    'evaluationNotes',
+  ] as const;
+  for (const key of textKeys) {
+    if (parsed[key]) body[key] = parsed[key];
+  }
+  if (parsed.kpssMinScore) body.kpssMinScore = parsed.kpssMinScore;
+  if (parsed.quota) body.quota = parsed.quota;
+  if (parsed.applicationMethods?.length) body.applicationMethods = parsed.applicationMethods;
+  if (parsed.requiredDocuments?.length) body.requiredDocuments = parsed.requiredDocuments;
+  if (parsed.positions?.length) {
+    body.positions = parsed.positions.map((p) => ({
+      sequenceNo: p.sequenceNo,
+      title: p.title,
+      serviceClass: p.serviceClass,
+      grade: p.grade,
+      quota: p.quota,
+      gender: p.gender,
+      educationRequirement: p.educationRequirement,
+      kpssScoreType: p.kpssScoreType,
+      kpssMinScore: p.kpssMinScore,
+    }));
+  }
+  return body;
 }
 
 function labelFor(code: string) {
